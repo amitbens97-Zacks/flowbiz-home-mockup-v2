@@ -36,12 +36,12 @@ export const PARTNER = { name: 'הכריש', role: 'השותף העסקי' };
 
 // The journey (November 2026): 6 chapters, 15 steps.
 export const CHAPTERS = [
-  { title: 'אפיון', rank: ['הפרויקטור', 'הפרויקטורית'] },
-  { title: 'שביל הכסף', rank: ['האסטרטג', 'האסטרטגית'] },
-  { title: 'בניית מותג אישי', rank: ['הפרזנטור', 'הפרזנטורית'] },
-  { title: 'מביאים לקוחות', rank: ['הקלוזר', 'הקלוזרית'] },
-  { title: 'מגדילים מכירות', rank: ['הבר סמכא', 'בת סמכא'] },
-  { title: 'העסק שתמיד רצית', rank: ['המאסטר', 'המאסטרית'] },
+  { title: 'אפיון', icon: 'lightbulb', rank: ['הפרויקטור', 'הפרויקטורית'] },
+  { title: 'שביל הכסף', icon: 'coins', rank: ['האסטרטג', 'האסטרטגית'] },
+  { title: 'בניית מותג אישי', icon: 'palette', rank: ['הפרזנטור', 'הפרזנטורית'] },
+  { title: 'מביאים לקוחות', icon: 'handshake', rank: ['הקלוזר', 'הקלוזרית'] },
+  { title: 'מגדילים מכירות', icon: 'rocket', rank: ['הבר סמכא', 'בת סמכא'] },
+  { title: 'העסק שתמיד רצית', icon: 'gem', rank: ['המאסטר', 'המאסטרית'] },
 ];
 
 // Every step adds one short note (1-4 words) to one area of the board. `out` = what the step

@@ -10,6 +10,7 @@ import { Sheet } from './ui.js';
 import { Board, AreaSheet, healthOf } from './canvas.js';
 import { ExplainButton, SharkTalk } from './explain.js';
 import { DevPanel } from './devnotes.js';
+import { JourneyMap } from './journeymap.js';
 import { USER, CHAPTERS, STEPS, TOTAL, NUMBERS_STEP, LEADS_STEP, SCENARIOS, DEFAULT_SCENARIO, WEEK, FIX, AREAS, PAGES, areaOf, GENDER, g } from './data.js';
 import { EMBED, IS_PHONE, readView, saveView, writeHandoff, takeHandoff, applyPhoneViewport, ViewToggle, PhonePreview } from './viewswitch.js';
 
@@ -89,11 +90,11 @@ function NextAction({ current, bottleneck, busy, onStart, onFix, onWeek }) {
 function JourneyLine({ current, onOpen }) {
   return html`<div class="flex items-center gap-3">
     <span class="shrink-0 text-[14px] font-bold text-ink">המסע</span>
-    <span class="jr-seg" role="img" aria-label=${`${Math.min(current, TOTAL)} מתוך ${TOTAL} שלבים`}>
+    <span class="jr-seg cursor-pointer" onClick=${onOpen} role="img" aria-label=${`${Math.min(current, TOTAL)} מתוך ${TOTAL} שלבים`}>
       ${STEPS.map((s, i) => html`<i key=${i} class=${cx(i < current && 'is-done', i === current && 'is-now', STEPS[i + 1] && STEPS[i + 1].ch !== s.ch && 'ch-end')}></i>`)}
     </span>
     <span class="shrink-0 text-[14px] font-semibold tabular-nums text-muted">${Math.min(current, TOTAL)}/${TOTAL}</span>
-    <button type="button" class="shrink-0 text-[14px] font-semibold text-brand-600 hover:underline cursor-pointer" onClick=${onOpen}>המסע המלא</button>
+    <button type="button" class="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 text-[14px] font-bold text-brand-600 ring-[1.5px] ring-brand-300 hover:bg-brand-50 cursor-pointer" onClick=${onOpen}><${Icon} name="map" size=${17} />מפת המסע</button>
   </div>`;
 }
 
@@ -118,26 +119,64 @@ function WeekNotes({ tasks, done, onToggle, onAll }) {
   </aside>`;
 }
 
-function JourneySheet({ current, onClose }) {
-  const curCh = current < TOTAL ? STEPS[current].ch : 99;
-  const rank = curCh > 0 ? CHAPTERS[Math.min(curCh, CHAPTERS.length) - 1].rank[GENDER === 'f' ? 1 : 0] : g('מתחיל', 'מתחילה');
-  return html`<${Sheet} title="המסע המלא" wide onClose=${onClose} footer=${html`<span class="fb-meta">${Math.min(current, TOTAL)} מתוך ${TOTAL} שלבים · הדרגה שלך: <b class="text-ink">${rank}</b></span><${Button} variant="secondary" onClick=${onClose}>חזרה ללוח<//>`}>
-    <div class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-      ${CHAPTERS.map(
-        (c, ci) => html`<section key=${ci}>
-          <h3 class=${cx('mb-1.5 flex items-center gap-2 font-display text-[16px] font-bold', ci > curCh ? 'text-muted' : 'text-ink')}>${ci < curCh && html`<${PencilCheck} size=${16} color="#0038b8" weight=${3} />`}פרק ${ci + 1} · ${c.title}</h3>
-          <ul class="flex flex-col gap-1">
-            ${STEPS.map((s, i) => ({ s, i }))
-              .filter(({ s }) => s.ch === ci)
-              .map(
-                ({ s, i }) => html`<li key=${i} class=${cx('flex h-9 items-center gap-2 rounded-lg px-2.5 text-[14px] font-semibold', i === current ? 'bg-brand-100 text-brand-600' : i < current ? 'text-ink' : 'text-muted')}>
-                  <span class="grid h-5 w-5 shrink-0 place-items-center">${i < current ? html`<${PencilCheck} size=${15} color="#0038b8" weight=${3} />` : i === current ? html`<${Icon} name="pencil" size=${15} />` : html`<i class="h-3 w-3 rounded-full border-[1.5px] border-dashed border-faint"></i>`}</span>
-                  <span class="flex-1 truncate">${i + 1}. ${s.name}</span><small class="text-[12px] text-muted">${areaOf(i).label}</small>
-                </li>`,
-              )}
-          </ul>
-        </section>`,
-      )}
+// The journey map (the road of 6 chapters from the dashboard mockup), one tap away from the board.
+// It opens over the home page; a chapter on the road opens its steps.
+const MAP_CHAPTERS = CHAPTERS.map((c, ci) => ({ id: ci + 1, title: c.title, icon: c.icon, rank: c.rank, steps: STEPS.filter((s) => s.ch === ci) }));
+function mapStates(current) {
+  const curCh = current < TOTAL ? STEPS[current].ch : -1;
+  return {
+    curCh,
+    states: MAP_CHAPTERS.map((c, ci) => {
+      const first = STEPS.findIndex((s) => s.ch === ci);
+      const doneIn = Math.max(0, Math.min(c.steps.length, current - first));
+      return { status: doneIn >= c.steps.length ? 'done' : ci === curCh ? 'current' : 'locked', doneInChapter: doneIn };
+    }),
+  };
+}
+
+function ChapterSteps({ index, current, onStart }) {
+  const c = MAP_CHAPTERS[index];
+  const first = STEPS.findIndex((s) => s.ch === index);
+  const doneIn = Math.max(0, Math.min(c.steps.length, current - first));
+  return html`<div>
+    <p class="pe-7 text-[12px] font-bold text-brand-600">פרק ${index + 1} מתוך ${CHAPTERS.length}</p>
+    <h3 class="fb-h3 mt-1 flex items-center gap-2 pe-7"><span class="fb-chip-ic h-9 w-9"><${Icon} name=${c.icon} size=${19} /></span>${c.title}</h3>
+    <p class="mt-1 flex items-center gap-1.5 text-[12px] font-bold text-ink"><${Icon} name="medal" size=${14} class=${doneIn >= c.steps.length ? 'text-gold' : 'text-faint'} />${doneIn >= c.steps.length ? 'הדרגה שקיבלת' : 'בסוף הפרק'}: ${c.rank[GENDER === 'f' ? 1 : 0]}</p>
+    <ol class="mt-3 flex flex-col gap-1.5">
+      ${c.steps.map((s, si) => {
+        const i = first + si;
+        const done = i < current;
+        const now = i === current;
+        return html`<li key=${i} class=${cx('flex items-center gap-2.5 rounded-xl px-3 py-2', now ? 'bg-brand-100 ring-2 ring-brand-300' : done ? 'bg-surface ring-1 ring-line' : 'ring-1 ring-line/70')}>
+          <span class="grid h-6 w-6 shrink-0 place-items-center">${done ? html`<${PencilCheck} size=${18} color="#0038b8" weight=${3.5} />` : now ? html`<${Icon} name="pencil" size=${16} class="text-brand-600" />` : html`<${Icon} name="lock" size=${13} class="text-faint" />`}</span>
+          <span class="min-w-0 flex-1">
+            <b class=${cx('block text-[14px] leading-snug', done || now ? 'text-ink' : 'text-muted')}>${i + 1}. ${s.name}</b>
+            <small class="text-[12px] text-muted">${done ? `פתק ב"${areaOf(i).label}"` : `כ-${s.min} דק׳ · ממלא את "${areaOf(i).label}"`}</small>
+          </span>
+          ${now && html`<${Button} variant="mini" onClick=${onStart}>מתחילים<//>`}
+        </li>`;
+      })}
+    </ol>
+  </div>`;
+}
+
+function MapSheet({ current, onClose, onStart }) {
+  const [sel, setSel] = useState(null);
+  const phonePanel = useRef(null);
+  // On the phone the chapter's steps open under the road: bring them into view.
+  useEffect(() => {
+    if (sel != null && phonePanel.current?.offsetParent) phonePanel.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [sel]);
+  const { curCh, states } = mapStates(current);
+  const rankCh = curCh < 0 ? CHAPTERS.length - 1 : curCh - 1;
+  const rank = rankCh >= 0 ? CHAPTERS[rankCh].rank[GENDER === 'f' ? 1 : 0] : g('מתחיל', 'מתחילה');
+  const panel = (i) => html`<${ChapterSteps} index=${i} current=${current} onStart=${() => (onClose(), onStart())} />`;
+  return html`<${Sheet} title="מפת המסע" full onClose=${onClose}
+    footer=${html`<span class="fb-meta">${Math.min(current, TOTAL)} מתוך ${TOTAL} שלבים · הדרגה שלך: <b class="text-ink">${rank}</b></span><${Button} variant="secondary" onClick=${onClose}>חזרה ללוח<//>`}>
+    <div class="mx-auto hidden md:block md:pt-2" style=${{ maxWidth: 'calc((88dvh - 240px) * 2.27)' }}><${JourneyMap} chapters=${MAP_CHAPTERS} states=${states} currentChapter=${curCh} selected=${sel} onSelect=${(i) => setSel((x) => (x === i ? null : i))} onClose=${() => setSel(null)} renderPanel=${panel} layout="wide" /></div>
+    <div class="mx-auto max-w-[400px] md:hidden">
+      <${JourneyMap} chapters=${MAP_CHAPTERS} states=${states} currentChapter=${curCh} selected=${sel} onSelect=${(i) => setSel((x) => (x === i ? null : i))} layout="tall" />
+      ${sel != null && html`<div ref=${phonePanel} class="mt-4 rounded-2xl bg-surface p-4 ring-2 ring-brand-900">${panel(sel)}</div>`}
     </div>
   <//>`;
 }
@@ -161,7 +200,7 @@ function App({ view, onViewChange }) {
   const fresh0 = (id) => ({ scId: id, current: SCENARIOS[id].current, fresh: null, done: {}, fixed: {} });
   const [s, setS] = useState(handoff?.state || fresh0(startSc));
   const [tab, setTab] = useState('home');
-  const [sheet, setSheet] = useState(null);
+  const [sheet, setSheet] = useState(() => (new URLSearchParams(location.search).has('map') ? { type: 'journey' } : null)); // ?map = open on the journey map
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState(null);
   const [dev, setDev] = useState(false);
@@ -276,7 +315,7 @@ function App({ view, onViewChange }) {
     </main>
     <${MobileNav} tab=${tab} onTab=${goTab} locks=${locks} />
     ${sheet?.type === 'area' && html`<${AreaSheet} id=${sheet.id} current=${current} sc=${sc} fixed=${s.fixed} health=${health} onClose=${() => setSheet(null)} onStart=${startStep} onFix=${fixNow} notify=${notify} />`}
-    ${sheet?.type === 'journey' && html`<${JourneySheet} current=${current} onClose=${() => setSheet(null)} />`}
+    ${sheet?.type === 'journey' && html`<${MapSheet} current=${current} onClose=${() => setSheet(null)} onStart=${startStep} />`}
     <${Toast} toast=${toast} onUndo=${undoToast} />
     <${DevPanel} open=${dev} onClose=${() => setDev(false)} scenario=${s.scId} onScenario=${changeScenario} onReset=${() => changeScenario(s.scId)} />
   </div>`;
